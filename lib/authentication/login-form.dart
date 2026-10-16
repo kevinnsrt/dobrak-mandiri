@@ -1,3 +1,4 @@
+import 'package:dobrak_mandiri_app/dashboard/cashier.main.dashboard.dart';
 import 'package:flutter/material.dart';
 
 class LoginForm extends StatefulWidget {
@@ -182,7 +183,12 @@ class _LoginFormState extends State<LoginForm> {
                       height: 52,
                       child: ElevatedButton(
                         onPressed: () {
-                          // Belum ada fungsi
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute<void>(
+                              builder: (context) => const CashierMainDashboard(),
+                            ),
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryGreen,

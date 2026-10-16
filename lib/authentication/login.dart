@@ -94,7 +94,6 @@ class _LoginPageState extends State<LoginPage> {
                   const Spacer(), // Memberi ruang kosong di antara teks dan tombol
 
                   // TOMBOL LOGIN
-                  // TOMBOL LOGIN
                   Container(
                     width: double.infinity,
                     height: 55,
