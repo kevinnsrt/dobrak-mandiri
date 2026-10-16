@@ -1,16 +1,4 @@
 # SISTEM INVENTASI PT DOBRAK MANDIRI
+<img width="1178" height="2498" alt="image" src="https://github.com/user-attachments/assets/90918692-4379-4ab5-a061-641fdadc90fb" />
+<img width="1178" height="2498" alt="image" src="https://github.com/user-attachments/assets/6d5bfcf2-709a-448a-b293-ef8b66797354" />
 
-A new Flutter project.
-
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
