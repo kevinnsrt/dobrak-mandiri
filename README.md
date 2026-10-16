@@ -1,4 +1,4 @@
-# dobrak_mandiri_app
+# SISTEM INVENTASI PT DOBRAK MANDIRI
 
 A new Flutter project.
 
