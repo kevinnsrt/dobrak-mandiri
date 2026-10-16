@@ -1,3 +1,7 @@
+import 'package:dobrak_mandiri_app/cashier/new_order_page.dart';
+import 'package:dobrak_mandiri_app/cashier/sales_report_page.dart';
+import 'package:dobrak_mandiri_app/cashier/stock_check_page.dart';
+import 'package:dobrak_mandiri_app/cashier/transaction_history_page.dart';
 import 'package:flutter/material.dart';
 
 class CashierMainDashboard extends StatefulWidget {
@@ -8,7 +12,6 @@ class CashierMainDashboard extends StatefulWidget {
 }
 
 class _CashierMainDashboardState extends State<CashierMainDashboard> {
-  // Warna Utama PT Dobrak Mandiri
   final Color primaryGreen = const Color(0xFF2E7D32);
   final Color lightGreenBg = const Color(0xFFE8F5E9);
 
@@ -45,9 +48,9 @@ class _CashierMainDashboardState extends State<CashierMainDashboard> {
             icon: const Icon(Icons.notifications_none, color: Colors.white),
             onPressed: () {},
           ),
-          CircleAvatar(
+          const CircleAvatar(
             backgroundColor: Colors.white24,
-            child: const Icon(Icons.person, color: Colors.white),
+            child: Icon(Icons.person, color: Colors.white),
           ),
           const SizedBox(width: 16),
         ],
@@ -67,7 +70,7 @@ class _CashierMainDashboardState extends State<CashierMainDashboard> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
+                      color: Colors.black.withValues(alpha: 0.04),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
                     ),
@@ -118,14 +121,14 @@ class _CashierMainDashboardState extends State<CashierMainDashboard> {
               ),
               const SizedBox(height: 16),
 
-              // --- 3. Grid Menu Akses Cepat (Box Pilihan) ---
+              // --- 3. Grid Menu Akses Cepat ---
               GridView.count(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 crossAxisCount: 2,
                 crossAxisSpacing: 16,
                 mainAxisSpacing: 16,
-                childAspectRatio: 1.1, // Rasio ukuran box
+                childAspectRatio: 1.1,
                 children: [
                   _buildMenuCard(
                     title: "Pesanan Baru",
@@ -133,7 +136,12 @@ class _CashierMainDashboardState extends State<CashierMainDashboard> {
                     icon: Icons.add_shopping_cart_rounded,
                     color: primaryGreen,
                     onTap: () {
-                      // Navigasi ke Halaman Pesanan Baru
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (context) => const NewOrderPage(),
+                        ),
+                      );
                     },
                   ),
                   _buildMenuCard(
@@ -142,7 +150,12 @@ class _CashierMainDashboardState extends State<CashierMainDashboard> {
                     icon: Icons.inventory_2_outlined,
                     color: const Color(0xFF1976D2), // Biru
                     onTap: () {
-                      // Navigasi ke Halaman Cek Stok
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (context) => const StockCheckPage(),
+                        ),
+                      );
                     },
                   ),
                   _buildMenuCard(
@@ -151,7 +164,12 @@ class _CashierMainDashboardState extends State<CashierMainDashboard> {
                     icon: Icons.insert_chart_outlined_rounded,
                     color: const Color(0xFFE65100), // Oranye
                     onTap: () {
-                      // Navigasi ke Halaman Laporan
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (context) => const SalesReportPage(),
+                        ),
+                      );
                     },
                   ),
                   _buildMenuCard(
@@ -160,7 +178,12 @@ class _CashierMainDashboardState extends State<CashierMainDashboard> {
                     icon: Icons.receipt_long_outlined,
                     color: const Color(0xFF7B1FA2), // Ungu
                     onTap: () {
-                      // Navigasi ke Halaman Riwayat
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute<void>(
+                          builder: (context) => const TransactionHistoryPage(),
+                        ),
+                      );
                     },
                   ),
                 ],
@@ -188,9 +211,9 @@ class _CashierMainDashboardState extends State<CashierMainDashboard> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildSummaryItem("Total Transaksi", "0"),
+                    _buildSummaryItem("Total Transaksi", "38"),
                     Container(height: 30, width: 1, color: Colors.grey.shade300),
-                    _buildSummaryItem("Item Terjual", "0"),
+                    _buildSummaryItem("Item Terjual", "142"),
                   ],
                 ),
               ),
@@ -226,7 +249,7 @@ class _CashierMainDashboardState extends State<CashierMainDashboard> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
+                  color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: color, size: 28),

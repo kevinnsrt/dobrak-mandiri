@@ -1,4 +1,4 @@
-import 'package:dobrak_mandiri_app/authentication/login-form.dart';
+import 'package:dobrak_mandiri_app/authentication/login_form.dart';
 import 'package:flutter/material.dart';
 
 class LoginPage extends StatefulWidget {
@@ -106,7 +106,7 @@ class _LoginPageState extends State<LoginPage> {
                             builder: (context) => const LoginForm(),
                           ),
                         );
-                        print("Tombol Login Ditekan");
+                        debugPrint("Tombol Login Ditekan");
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: primaryGreen, // Warna background hijau solid
