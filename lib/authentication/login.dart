@@ -1,3 +1,4 @@
+import 'package:dobrak_mandiri_app/authentication/login-form.dart';
 import 'package:flutter/material.dart';
 
 class LoginPage extends StatefulWidget {
@@ -93,13 +94,19 @@ class _LoginPageState extends State<LoginPage> {
                   const Spacer(), // Memberi ruang kosong di antara teks dan tombol
 
                   // TOMBOL LOGIN
+                  // TOMBOL LOGIN
                   Container(
                     width: double.infinity,
                     height: 55,
                     margin: const EdgeInsets.only(bottom: 20), // Jarak dari bawah
                     child: ElevatedButton(
                       onPressed: () {
-                        // Aksi ketika tombol Login ditekan (Navigasi ke Dashboard dll)
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (context) => const LoginForm(),
+                          ),
+                        );
                         print("Tombol Login Ditekan");
                       },
                       style: ElevatedButton.styleFrom(
