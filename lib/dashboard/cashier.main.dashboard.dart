@@ -1,7 +1,9 @@
+import 'package:dobrak_mandiri_app/authentication/login.dart';
 import 'package:dobrak_mandiri_app/cashier/new_order_page.dart';
 import 'package:dobrak_mandiri_app/cashier/sales_report_page.dart';
 import 'package:dobrak_mandiri_app/cashier/stock_check_page.dart';
 import 'package:dobrak_mandiri_app/cashier/transaction_history_page.dart';
+import 'package:dobrak_mandiri_app/services/auth_service.dart';
 import 'package:flutter/material.dart';
 
 class CashierMainDashboard extends StatefulWidget {
@@ -14,6 +16,30 @@ class CashierMainDashboard extends StatefulWidget {
 class _CashierMainDashboardState extends State<CashierMainDashboard> {
   final Color primaryGreen = const Color(0xFF2E7D32);
   final Color lightGreenBg = const Color(0xFFE8F5E9);
+
+  String _userName = 'Kasir Toko';
+  String _userEmail = 'kasir@pos.local';
+  String _userRole = 'KASIR';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserInfo();
+  }
+
+  Future<void> _loadUserInfo() async {
+    final name = await AuthService.getUserName();
+    final email = await AuthService.getUserEmail();
+    final role = await AuthService.getUserRole();
+
+    if (mounted) {
+      setState(() {
+        if (name != null && name.isNotEmpty) _userName = name;
+        if (email != null && email.isNotEmpty) _userEmail = email;
+        if (role != null && role.isNotEmpty) _userRole = role;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,9 +74,59 @@ class _CashierMainDashboardState extends State<CashierMainDashboard> {
             icon: const Icon(Icons.notifications_none, color: Colors.white),
             onPressed: () {},
           ),
-          const CircleAvatar(
-            backgroundColor: Colors.white24,
-            child: Icon(Icons.person, color: Colors.white),
+          PopupMenuButton<String>(
+            icon: const CircleAvatar(
+              backgroundColor: Colors.white24,
+              child: Icon(Icons.person, color: Colors.white),
+            ),
+            onSelected: (value) async {
+              if (value == 'logout') {
+                await AuthService.logout();
+                if (context.mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (context) => const LoginPage(),
+                    ),
+                    (route) => false,
+                  );
+                }
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                enabled: false,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _userName,
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                    ),
+                    Text(
+                      _userEmail,
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "Role: $_userRole",
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: primaryGreen),
+                    ),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, color: Colors.red, size: 20),
+                    SizedBox(width: 8),
+                    Text("Keluar (Logout)", style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 16),
         ],
@@ -87,22 +163,47 @@ class _CashierMainDashboardState extends State<CashierMainDashboard> {
                       child: Icon(Icons.storefront, color: primaryGreen, size: 30),
                     ),
                     const SizedBox(width: 16),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          "Selamat Datang,",
-                          style: TextStyle(fontSize: 13, color: Colors.grey),
-                        ),
-                        Text(
-                          "Winaldy Senna",
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey.shade800,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "Selamat Datang,",
+                            style: TextStyle(fontSize: 13, color: Colors.grey),
                           ),
+                          Text(
+                            _userName,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey.shade800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _userEmail,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: lightGreenBg,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        _userRole,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: primaryGreen,
                         ),
-                      ],
+                      ),
                     ),
                   ],
                 ),

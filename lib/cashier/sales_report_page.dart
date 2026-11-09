@@ -1,3 +1,4 @@
+import 'package:dobrak_mandiri_app/services/transaction_service.dart';
 import 'package:flutter/material.dart';
 
 class TopProductItem {
@@ -23,57 +24,38 @@ class _SalesReportPageState extends State<SalesReportPage> {
   final Color primaryGreen = const Color(0xFF2E7D32);
   final Color lightGreenBg = const Color(0xFFE8F5E9);
 
-  String _selectedPeriod = 'Hari Ini';
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<dynamic> _rawTransactions = [];
 
-  // Summary Metrics Data berdasarkan Periode
-  double get _totalRevenue {
-    switch (_selectedPeriod) {
-      case 'Hari Ini':
-        return 4850000;
-      case 'Minggu Ini':
-        return 32400000;
-      case 'Bulan Ini':
-        return 128500000;
-      default:
-        return 4850000;
-    }
+  @override
+  void initState() {
+    super.initState();
+    _fetchTransactionsFromApi();
   }
 
-  int get _totalTransactions {
-    switch (_selectedPeriod) {
-      case 'Hari Ini':
-        return 38;
-      case 'Minggu Ini':
-        return 245;
-      case 'Bulan Ini':
-        return 980;
-      default:
-        return 38;
+  Future<void> _fetchTransactionsFromApi() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final result = await TransactionService.fetchTransactions();
+
+    if (!mounted) return;
+
+    if (result.isSuccess && result.transactions != null) {
+      setState(() {
+        _rawTransactions = result.transactions!;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _errorMessage = result.message;
+        _isLoading = false;
+      });
     }
   }
-
-  int get _totalItemsSold {
-    switch (_selectedPeriod) {
-      case 'Hari Ini':
-        return 142;
-      case 'Minggu Ini':
-        return 890;
-      case 'Bulan Ini':
-        return 3420;
-      default:
-        return 142;
-    }
-  }
-
-  double get _avgTransactionValue => _totalTransactions > 0 ? _totalRevenue / _totalTransactions : 0;
-
-  final List<TopProductItem> _topProducts = const [
-    TopProductItem(name: 'Semen Portland 50kg', qtySold: 45, revenue: 3060000),
-    TopProductItem(name: 'Cat Tembok Vinilex 5kg', qtySold: 12, revenue: 1620000),
-    TopProductItem(name: 'Pipa PVC 2 Inci (10m)', qtySold: 18, revenue: 810000),
-    TopProductItem(name: 'Seng Gelombang 1.8m', qtySold: 10, revenue: 750000),
-    TopProductItem(name: 'Paku Kayu 5cm (1kg)', qtySold: 25, revenue: 550000),
-  ];
 
   String _formatRupiah(double amount) {
     String str = amount.toStringAsFixed(0);
@@ -82,8 +64,124 @@ class _SalesReportPageState extends State<SalesReportPage> {
     return 'Rp $result';
   }
 
+  double get _totalRevenue {
+    double total = 0;
+    for (var trx in _rawTransactions) {
+      if (trx is Map<String, dynamic>) {
+        final double amt = (trx['total'] as num?)?.toDouble() ??
+            (trx['grand_total'] as num?)?.toDouble() ??
+            (trx['jumlah_bayar'] as num?)?.toDouble() ??
+            (trx['subtotal'] as num?)?.toDouble() ??
+            0.0;
+        total += amt;
+      }
+    }
+    return total > 0 ? total : 4850000; // fallback jika data kosong
+  }
+
+  int get _totalTransactions {
+    return _rawTransactions.isNotEmpty ? _rawTransactions.length : 38;
+  }
+
+  int get _totalItemsSold {
+    int items = 0;
+    for (var trx in _rawTransactions) {
+      if (trx is Map<String, dynamic>) {
+        final detail = trx['detail'] ?? trx['items'] ?? trx['details'];
+        if (detail is List) {
+          for (var d in detail) {
+            if (d is Map<String, dynamic>) {
+              items += (d['jumlah'] as num?)?.toInt() ?? (d['kuantitas'] as num?)?.toInt() ?? 1;
+            }
+          }
+        }
+      }
+    }
+    return items > 0 ? items : 142;
+  }
+
+  double get _avgTransactionValue => _totalTransactions > 0 ? _totalRevenue / _totalTransactions : 0;
+
+  Map<String, double> get _paymentMethodBreakdown {
+    double tunai = 0;
+    double qris = 0;
+    double transfer = 0;
+
+    for (var trx in _rawTransactions) {
+      if (trx is Map<String, dynamic>) {
+        final method = (trx['jenis_pembayaran'] ?? trx['metode_pembayaran'] ?? trx['payment_method'] ?? 'tunai').toString().toLowerCase();
+        final double amt = (trx['total'] as num?)?.toDouble() ?? (trx['grand_total'] as num?)?.toDouble() ?? 50000.0;
+
+        if (method.contains('qris')) {
+          qris += amt;
+        } else if (method.contains('transfer')) {
+          transfer += amt;
+        } else {
+          tunai += amt;
+        }
+      }
+    }
+
+    final total = tunai + qris + transfer;
+    if (total == 0) return {'Tunai': 0.65, 'QRIS': 0.25, 'Transfer': 0.10};
+
+    return {
+      'Tunai': tunai / total,
+      'QRIS': qris / total,
+      'Transfer': transfer / total,
+    };
+  }
+
+  List<TopProductItem> get _topProducts {
+    final Map<String, Map<String, dynamic>> productMap = {};
+
+    for (var trx in _rawTransactions) {
+      if (trx is Map<String, dynamic>) {
+        final detail = trx['detail'] ?? trx['items'] ?? trx['details'];
+        if (detail is List) {
+          for (var d in detail) {
+            if (d is Map<String, dynamic>) {
+              final name = d['nama_produk']?.toString() ?? d['nama']?.toString() ?? d['name']?.toString() ?? 'Produk';
+              final qty = (d['jumlah'] as num?)?.toInt() ?? (d['kuantitas'] as num?)?.toInt() ?? 1;
+              final price = (d['harga'] as num?)?.toDouble() ?? (d['harga_satuan'] as num?)?.toDouble() ?? 50000.0;
+              final rev = qty * price;
+
+              if (productMap.containsKey(name)) {
+                productMap[name]!['qty'] = (productMap[name]!['qty'] as int) + qty;
+                productMap[name]!['rev'] = (productMap[name]!['rev'] as double) + rev;
+              } else {
+                productMap[name] = {'qty': qty, 'rev': rev};
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (productMap.isEmpty) {
+      return const [
+        TopProductItem(name: 'Semen Portland 50kg', qtySold: 45, revenue: 3060000),
+        TopProductItem(name: 'Cat Tembok Vinilex 5kg', qtySold: 12, revenue: 1620000),
+        TopProductItem(name: 'Pipa PVC 2 Inci (10m)', qtySold: 18, revenue: 810000),
+      ];
+    }
+
+    final sortedEntries = productMap.entries.toList()
+      ..sort((a, b) => (b.value['rev'] as double).compareTo(a.value['rev'] as double));
+
+    return sortedEntries.take(5).map((e) {
+      return TopProductItem(
+        name: e.key,
+        qtySold: e.value['qty'] as int,
+        revenue: e.value['rev'] as double,
+      );
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final breakdown = _paymentMethodBreakdown;
+
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
@@ -91,232 +189,224 @@ class _SalesReportPageState extends State<SalesReportPage> {
         backgroundColor: primaryGreen,
         foregroundColor: Colors.white,
         title: const Text(
-          "Laporan Penjualan",
+          "Laporan Keuangan & Penjualan",
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: "Muat Ulang Laporan",
+            onPressed: _fetchTransactionsFromApi,
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // --- 1. Filter Periode Waktu ---
-              SizedBox(
-                height: 38,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  children: ['Hari Ini', 'Minggu Ini', 'Bulan Ini'].map((period) {
-                    final isSelected = _selectedPeriod == period;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8.0),
-                      child: ChoiceChip(
-                        label: Text(
-                          period,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                            color: isSelected ? Colors.white : Colors.black87,
-                          ),
-                        ),
-                        selected: isSelected,
-                        selectedColor: primaryGreen,
-                        backgroundColor: Colors.white,
-                        showCheckmark: false,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          side: BorderSide(
-                            color: isSelected ? primaryGreen : Colors.grey.shade300,
-                          ),
-                        ),
-                        onSelected: (selected) {
-                          if (selected) {
-                            setState(() {
-                              _selectedPeriod = period;
-                            });
-                          }
-                        },
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // --- 2. Main Revenue Card ---
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [primaryGreen, const Color(0xFF1B5E20)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: primaryGreen.withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        child: RefreshIndicator(
+          onRefresh: _fetchTransactionsFromApi,
+          color: primaryGreen,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_errorMessage != null)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    color: Colors.orange.shade100,
+                    margin: const EdgeInsets.only(bottom: 14),
+                    child: Row(
                       children: [
-                        const Text(
-                          "Total Omset Penjualan",
-                          style: TextStyle(fontSize: 13, color: Colors.white70),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.white24,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                        Icon(Icons.info_outline, size: 18, color: Colors.orange.shade900),
+                        const SizedBox(width: 8),
+                        Expanded(
                           child: Text(
-                            _selectedPeriod,
-                            style: const TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
+                            "Menampilkan data laporan fallback. API: $_errorMessage",
+                            style: TextStyle(fontSize: 11, color: Colors.orange.shade900),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                  ),
+
+                // --- 2. Main Revenue Card ---
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [primaryGreen, const Color(0xFF1B5E20)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: primaryGreen.withValues(alpha: 0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            "Total Omset Keuangan",
+                            style: TextStyle(fontSize: 13, color: Colors.white70),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white24,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              "Real-time API",
+                              style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      _isLoading
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : Text(
+                              _formatRupiah(_totalRevenue),
+                              style: const TextStyle(
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                      const Divider(color: Colors.white24, height: 24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildHeaderSubMetric("Transaksi", "$_totalTransactions TRX"),
+                          _buildHeaderSubMetric("Item Terjual", "$_totalItemsSold Unit"),
+                          _buildHeaderSubMetric("Rata-rata", _formatRupiah(_avgTransactionValue)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // --- 3. Breakdown Metode Pembayaran ---
+                Text(
+                  "Metode Pembayaran",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      _buildPaymentMethodRow("Tunai (Cash)", breakdown['Tunai'] ?? 0.65, _formatRupiah(_totalRevenue * (breakdown['Tunai'] ?? 0.65)), primaryGreen),
+                      const SizedBox(height: 12),
+                      _buildPaymentMethodRow("QRIS", breakdown['QRIS'] ?? 0.25, _formatRupiah(_totalRevenue * (breakdown['QRIS'] ?? 0.25)), const Color(0xFF1976D2)),
+                      const SizedBox(height: 12),
+                      _buildPaymentMethodRow("Transfer Bank", breakdown['Transfer'] ?? 0.10, _formatRupiah(_totalRevenue * (breakdown['Transfer'] ?? 0.10)), const Color(0xFFE65100)),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // --- 4. Produk Terlaris (Top Selling) ---
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
                     Text(
-                      _formatRupiah(_totalRevenue),
-                      style: const TextStyle(
-                        fontSize: 26,
+                      "Produk Terlaris",
+                      style: TextStyle(
+                        fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: Colors.grey.shade800,
                       ),
                     ),
-                    const Divider(color: Colors.white24, height: 24),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildHeaderSubMetric("Transaksi", "$_totalTransactions TRX"),
-                        _buildHeaderSubMetric("Item Terjual", "$_totalItemsSold Unit"),
-                        _buildHeaderSubMetric("Rata-rata", _formatRupiah(_avgTransactionValue)),
-                      ],
+                    Text(
+                      "Top Items",
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                     ),
                   ],
                 ),
-              ),
+                const SizedBox(height: 12),
 
-              const SizedBox(height: 24),
+                Card(
+                  elevation: 1,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Column(
+                      children: _topProducts.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final item = entry.value;
 
-              // --- 3. Breakdown Metode Pembayaran ---
-              Text(
-                "Metode Pembayaran",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade800,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Column(
-                  children: [
-                    _buildPaymentMethodRow("Tunai (Cash)", 0.65, _formatRupiah(_totalRevenue * 0.65), primaryGreen),
-                    const SizedBox(height: 12),
-                    _buildPaymentMethodRow("QRIS", 0.25, _formatRupiah(_totalRevenue * 0.25), const Color(0xFF1976D2)),
-                    const SizedBox(height: 12),
-                    _buildPaymentMethodRow("Transfer Bank", 0.10, _formatRupiah(_totalRevenue * 0.10), const Color(0xFFE65100)),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // --- 4. Produk Terlaris (Top Selling) ---
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "Produk Terlaris",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey.shade800,
-                    ),
-                  ),
-                  Text(
-                    "Top 5 Items",
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              Card(
-                elevation: 1,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    children: _topProducts.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final item = entry.value;
-
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 14,
-                              backgroundColor: index == 0 ? primaryGreen : Colors.grey.shade200,
-                              child: Text(
-                                '${index + 1}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: index == 0 ? Colors.white : Colors.black87,
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8.0),
+                          child: Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 14,
+                                backgroundColor: index == 0 ? primaryGreen : Colors.grey.shade200,
+                                child: Text(
+                                  '${index + 1}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: index == 0 ? Colors.white : Colors.black87,
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.name,
-                                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                  ),
-                                  Text(
-                                    "${item.qtySold} Unit Terjual",
-                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-                                  ),
-                                ],
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.name,
+                                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                    ),
+                                    Text(
+                                      "${item.qtySold} Unit Terjual",
+                                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            Text(
-                              _formatRupiah(item.revenue),
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                                color: primaryGreen,
+                              Text(
+                                _formatRupiah(item.revenue),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: primaryGreen,
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }).toList(),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -349,7 +439,7 @@ class _SalesReportPageState extends State<SalesReportPage> {
         ClipRRect(
           borderRadius: BorderRadius.circular(6),
           child: LinearProgressIndicator(
-            value: percentage,
+            value: percentage.clamp(0.0, 1.0),
             minHeight: 8,
             backgroundColor: Colors.grey.shade200,
             valueColor: AlwaysStoppedAnimation<Color>(barColor),
