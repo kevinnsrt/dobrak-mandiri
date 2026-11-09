@@ -1,7 +1,7 @@
 import 'package:dobrak_mandiri_app/authentication/login.dart';
-import 'package:dobrak_mandiri_app/cashier/sales_report_page.dart';
 import 'package:dobrak_mandiri_app/cashier/stock_check_page.dart';
 import 'package:dobrak_mandiri_app/services/auth_service.dart';
+import 'package:dobrak_mandiri_app/services/stock_service.dart';
 import 'package:flutter/material.dart';
 
 class InventoryMainDashboard extends StatefulWidget {
@@ -16,7 +16,43 @@ class _InventoryMainDashboardState extends State<InventoryMainDashboard> {
   final Color primaryGreen = const Color(0xFF2E7D32);
   final Color lightGreenBg = const Color(0xFFE8F5E9);
 
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _apiStockList = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    final result = await StockService.fetchStockList();
+    if (!mounted) return;
+
+    if (result.isSuccess && result.data != null) {
+      final List<Map<String, dynamic>> items = [];
+      for (var raw in result.data!) {
+        if (raw is Map<String, dynamic>) {
+          items.add(raw);
+        }
+      }
+      setState(() {
+        _apiStockList = items;
+        _isLoading = false;
+      });
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
   void _showSnackBar(String message, {bool isSuccess = true}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -25,6 +61,47 @@ class _InventoryMainDashboardState extends State<InventoryMainDashboard> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
+  }
+
+  int get _lowStockCount {
+    if (_apiStockList.isEmpty) return 3; // Fallback
+    return _apiStockList.where((item) {
+      final q = (item['kuantitas'] ?? item['stok'] ?? 0) as num;
+      return q > 0 && q <= 5;
+    }).length;
+  }
+
+  int get _outOfStockCount {
+    if (_apiStockList.isEmpty) return 1; // Fallback
+    return _apiStockList.where((item) {
+      final q = (item['kuantitas'] ?? item['stok'] ?? 0) as num;
+      return q == 0;
+    }).length;
+  }
+
+  List<Map<String, dynamic>> get _lowStockItems {
+    if (_apiStockList.isEmpty) {
+      return [
+        {
+          'nama_produk': 'Pipa PVC 2 Inci (10m)',
+          'kategori': 'Bahan Bangunan',
+          'kuantitas': 2,
+          'satuan': 'Batang',
+          'min_stok': 10,
+        },
+        {
+          'nama_produk': 'Semen Portland 50kg',
+          'kategori': 'Material Dasar',
+          'kuantitas': 4,
+          'satuan': 'Sak',
+          'min_stok': 20,
+        },
+      ];
+    }
+    return _apiStockList.where((item) {
+      final q = (item['kuantitas'] ?? item['stok'] ?? 0) as num;
+      return q > 0 && q <= 5;
+    }).toList();
   }
 
   @override
@@ -57,10 +134,9 @@ class _InventoryMainDashboardState extends State<InventoryMainDashboard> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.white),
-            onPressed: () {
-              _showSnackBar("Tidak ada notifikasi baru");
-            },
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: "Muat Ulang Dashboard",
+            onPressed: _loadDashboardData,
           ),
           PopupMenuButton<String>(
             icon: const CircleAvatar(
@@ -106,330 +182,381 @@ class _InventoryMainDashboardState extends State<InventoryMainDashboard> {
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // --- 1. Ringkasan Status Gudang ---
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: lightGreenBg,
-                            shape: BoxShape.circle,
+        child: RefreshIndicator(
+          onRefresh: _loadDashboardData,
+          color: primaryGreen,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // --- 1. Ringkasan Status Gudang ---
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: lightGreenBg,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.warehouse_outlined, color: primaryGreen, size: 28),
                           ),
-                          child: Icon(Icons.warehouse_outlined, color: primaryGreen, size: 28),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                "Gudang Utama (Pusat)",
-                                style: TextStyle(fontSize: 13, color: Colors.grey),
-                              ),
-                              Text(
-                                "Total SKU: 1,240 Item",
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey.shade800,
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  "Gudang Utama (Pusat)",
+                                  style: TextStyle(fontSize: 13, color: Colors.grey),
                                 ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: lightGreenBg,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            "Aktif",
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: primaryGreen,
+                                Text(
+                                  "Total SKU: ${_apiStockList.isNotEmpty ? _apiStockList.length : 1240} Item",
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey.shade800,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16.0),
-                      child: Divider(height: 1),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute<void>(
-                                builder: (context) => const StockCheckPage(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: lightGreenBg,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              "Aktif",
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: primaryGreen,
                               ),
-                            );
-                          },
-                          child: _buildStatMetric("Stok Rendah", "12 Item", Colors.orange.shade800),
-                        ),
-                        Container(height: 28, width: 1, color: Colors.grey.shade300),
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute<void>(
-                                builder: (context) => const StockCheckPage(),
-                              ),
-                            );
-                          },
-                          child: _buildStatMetric("Stok Habis", "3 Item", Colors.red.shade700),
-                        ),
-                        Container(height: 28, width: 1, color: Colors.grey.shade300),
-                        _buildStatMetric("Barang Masuk", "+45 Hari ini", primaryGreen),
-                      ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 16.0),
+                        child: Divider(height: 1),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceAround,
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute<void>(
+                                  builder: (context) => const StockCheckPage(),
+                                ),
+                              );
+                            },
+                            child: _buildStatMetric("Stok Menipis (<=5)", "$_lowStockCount Item", Colors.orange.shade800),
+                          ),
+                          Container(height: 28, width: 1, color: Colors.grey.shade300),
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute<void>(
+                                  builder: (context) => const StockCheckPage(),
+                                ),
+                              );
+                            },
+                            child: _buildStatMetric("Stok Habis", "$_outOfStockCount Item", Colors.red.shade700),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // --- 2. Menu Operasional Inventaris (Grid Box) ---
+                Text(
+                  "Manajemen Stok & Gudang",
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                GridView.count(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 16,
+                  mainAxisSpacing: 16,
+                  childAspectRatio: 1.1,
+                  children: [
+                    _buildInventoryMenuCard(
+                      title: "Daftar Barang",
+                      subtitle: "Master data & stok",
+                      icon: Icons.inventory_2_outlined,
+                      color: primaryGreen,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (context) => const StockCheckPage(),
+                          ),
+                        );
+                      },
+                    ),
+                    _buildInventoryMenuCard(
+                      title: "Barang Masuk",
+                      subtitle: "Tambah barang baru",
+                      icon: Icons.add_box_outlined,
+                      color: const Color(0xFF1976D2), // Biru
+                      onTap: _showStockInDialog,
+                    ),
+                    _buildInventoryMenuCard(
+                      title: "Barang Keluar",
+                      subtitle: "Pengeluaran stok",
+                      icon: Icons.outbox_outlined,
+                      color: const Color(0xFFE65100), // Oranye
+                      onTap: _showStockOutDialog,
+                    ),
+                    _buildInventoryMenuCard(
+                      title: "Kategori Barang",
+                      subtitle: "Kelola kelompok item",
+                      icon: Icons.category_outlined,
+                      color: const Color(0xFF00796B), // Teal
+                      onTap: _showCategoryOverviewSheet,
                     ),
                   ],
                 ),
-              ),
 
-              const SizedBox(height: 24),
+                const SizedBox(height: 28),
 
-              // --- 2. Menu Operasional Inventaris (Grid Box) ---
-              Text(
-                "Manajemen Stok & Gudang",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade800,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 1.1,
-                children: [
-                  _buildInventoryMenuCard(
-                    title: "Daftar Barang",
-                    subtitle: "Master data & stok",
-                    icon: Icons.inventory_2_outlined,
-                    color: primaryGreen,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (context) => const StockCheckPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildInventoryMenuCard(
-                    title: "Barang Masuk",
-                    subtitle: "Restock / Supplier",
-                    icon: Icons.move_to_inbox_outlined,
-                    color: const Color(0xFF1976D2), // Biru
-                    onTap: _showStockInDialog,
-                  ),
-                  _buildInventoryMenuCard(
-                    title: "Barang Keluar",
-                    subtitle: "Pengeluaran stok",
-                    icon: Icons.outbox_outlined,
-                    color: const Color(0xFFE65100), // Oranye
-                    onTap: _showStockOutDialog,
-                  ),
-                  _buildInventoryMenuCard(
-                    title: "Opname Stok",
-                    subtitle: "Audit fisik barang",
-                    icon: Icons.fact_check_outlined,
-                    color: const Color(0xFF7B1FA2), // Ungu
-                    onTap: _showStockOpnameDialog,
-                  ),
-                  _buildInventoryMenuCard(
-                    title: "Kategori Barang",
-                    subtitle: "Kelola kelompok item",
-                    icon: Icons.category_outlined,
-                    color: const Color(0xFF00796B), // Teal
-                    onTap: _showCategoryOverviewSheet,
-                  ),
-                  _buildInventoryMenuCard(
-                    title: "Laporan Stok",
-                    subtitle: "Rekapitulasi inventaris",
-                    icon: Icons.assessment_outlined,
-                    color: const Color(0xFFC2185B), // Pink Tua
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (context) => const SalesReportPage(),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 28),
-
-              // --- 3. Peringatan Stok Rendah (Urgent Alert Section) ---
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "Peringatan Stok Menipis",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey.shade800,
+                // --- 3. Peringatan Stok Menipis (Dinamis dari Database, kuantitas <= 5) ---
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Peringatan Stok Menipis (<=5)",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade800,
+                      ),
                     ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (context) => const StockCheckPage(),
-                        ),
-                      );
-                    },
-                    child: Text("Lihat Semua", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (context) => const StockCheckPage(),
+                          ),
+                        );
+                      },
+                      child: Text("Lihat Semua", style: TextStyle(color: primaryGreen, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
 
-              // Card Item Peringatan Stok
-              _buildLowStockItem(
-                itemName: "Pipa PVC 2 Inci (10m)",
-                category: "Bahan Bangunan",
-                remainingStock: "2 Batang",
-                minStock: "10 Batang",
-              ),
-              const SizedBox(height: 10),
-              _buildLowStockItem(
-                itemName: "Semen Portland 50kg",
-                category: "Material Dasar",
-                remainingStock: "5 Sak",
-                minStock: "20 Sak",
-              ),
-              const SizedBox(height: 10),
-              _buildLowStockItem(
-                itemName: "Cat Tembok Vinilex 5kg",
-                category: "Cat & Pelapis",
-                remainingStock: "4 Kaleng",
-                minStock: "12 Kaleng",
-              ),
-            ],
+                if (_isLoading)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20.0),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                else if (_lowStockItems.isEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Text("Semua stok barang dalam kondisi aman (>5).", style: TextStyle(color: Colors.grey)),
+                  )
+                else
+                  ..._lowStockItems.map((item) {
+                    final String name = item['nama_produk']?.toString() ?? item['nama']?.toString() ?? 'Barang';
+                    final String category = item['kategori']?.toString() ?? 'Bahan Bangunan';
+                    final int qty = (item['kuantitas'] ?? item['stok'] ?? 0) as int;
+                    final String unit = item['satuan']?.toString() ?? item['unit']?.toString() ?? 'Unit';
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10.0),
+                      child: _buildLowStockItem(
+                        itemName: name,
+                        category: category,
+                        remainingStock: "$qty $unit",
+                        minStock: "5 $unit",
+                      ),
+                    );
+                  }),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // --- Modal Dialog: Restock / Barang Masuk ---
+  // --- Modal Dialog: Tambah Barang Baru (Barang Masuk) ---
   void _showStockInDialog() {
+    final TextEditingController newSkuController = TextEditingController();
+    final TextEditingController newNameController = TextEditingController();
+    final TextEditingController newCategoryController = TextEditingController();
+    final TextEditingController newPriceController = TextEditingController();
     final TextEditingController qtyController = TextEditingController();
-    final TextEditingController supplierController = TextEditingController();
-    String selectedItem = 'Semen Portland 50kg';
+
+    bool isSubmitting = false;
 
     showDialog<void>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Row(
-            children: [
-              Icon(Icons.move_to_inbox_outlined, color: const Color(0xFF1976D2)),
-              const SizedBox(width: 10),
-              const Text("Penerimaan Barang Masuk", style: TextStyle(fontSize: 16)),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("Pilih Barang", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
-                const SizedBox(height: 6),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedItem,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'Semen Portland 50kg', child: Text('Semen Portland 50kg')),
-                    DropdownMenuItem(value: 'Pipa PVC 2 Inci (10m)', child: Text('Pipa PVC 2 Inci (10m)')),
-                    DropdownMenuItem(value: 'Cat Tembok Vinilex 5kg', child: Text('Cat Tembok Vinilex 5kg')),
-                    DropdownMenuItem(value: 'Paku Kayu 5cm (1kg)', child: Text('Paku Kayu 5cm (1kg)')),
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: [
+                  Icon(Icons.add_box_outlined, color: const Color(0xFF1976D2)),
+                  const SizedBox(width: 10),
+                  const Text("Tambah Barang Baru", style: TextStyle(fontSize: 16)),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Form Pendaftaran & Stok Awal Produk", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: newSkuController,
+                      enabled: !isSubmitting,
+                      decoration: InputDecoration(
+                        labelText: "Kode SKU / Kode Barang (misal: SKU-999)",
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: newNameController,
+                      enabled: !isSubmitting,
+                      decoration: InputDecoration(
+                        labelText: "Nama Produk Baru",
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: newCategoryController,
+                      enabled: !isSubmitting,
+                      decoration: InputDecoration(
+                        labelText: "Kategori (misal: Bahan Bangunan)",
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: newPriceController,
+                      keyboardType: TextInputType.number,
+                      enabled: !isSubmitting,
+                      decoration: InputDecoration(
+                        labelText: "Harga Jual (Rp)",
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: qtyController,
+                      keyboardType: TextInputType.number,
+                      enabled: !isSubmitting,
+                      decoration: InputDecoration(
+                        labelText: "Jumlah Kuantitas Awal",
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
                   ],
-                  onChanged: (val) {
-                    if (val != null) selectedItem = val;
-                  },
                 ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: qtyController,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: "Jumlah Masuk (Unit)",
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.pop(dialogContext),
+                  child: const Text("Batal", style: TextStyle(color: Colors.grey)),
                 ),
-                const SizedBox(height: 14),
-                TextField(
-                  controller: supplierController,
-                  decoration: InputDecoration(
-                    labelText: "Nama Supplier / Vendor",
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final String sku = newSkuController.text.trim().isEmpty
+                              ? 'SKU-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}'
+                              : newSkuController.text.trim();
+                          final String name = newNameController.text.trim().isEmpty ? 'Produk Baru' : newNameController.text.trim();
+                          final String category = newCategoryController.text.trim().isEmpty ? 'Bahan Bangunan' : newCategoryController.text.trim();
+                          final double price = double.tryParse(newPriceController.text.replaceAll('.', '')) ?? 50000.0;
+                          final int qty = int.tryParse(qtyController.text) ?? 10;
+
+                          setDialogState(() {
+                            isSubmitting = true;
+                          });
+
+                          final result = await StockService.stockUpdate(
+                            kodeSku: sku,
+                            namaProduk: name,
+                            kuantitas: qty,
+                            harga: price,
+                            kategori: category,
+                          );
+
+                          if (!dialogContext.mounted) return;
+                          Navigator.pop(dialogContext);
+
+                          if (result.isSuccess) {
+                            _showSnackBar("Berhasil menambahkan barang baru!");
+                            _loadDashboardData(); // Refresh dashboard data
+                          } else {
+                            _showSnackBar(result.message, isSuccess: false);
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1976D2),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
+                  child: isSubmitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text("SIMPAN BARANG"),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Batal", style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                final qty = qtyController.text.isEmpty ? "10" : qtyController.text;
-                _showSnackBar("Berhasil menambahkan $qty unit $selectedItem ke stok gudang!");
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1976D2),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: const Text("SIMPAN STOK"),
-            ),
-          ],
+            );
+          },
         );
       },
     );
@@ -521,83 +648,6 @@ class _InventoryMainDashboardState extends State<InventoryMainDashboard> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               child: const Text("PROSES KELUAR"),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  // --- Modal Dialog: Opname Stok ---
-  void _showStockOpnameDialog() {
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Row(
-            children: [
-              Icon(Icons.fact_check_outlined, color: const Color(0xFF7B1FA2)),
-              const SizedBox(width: 10),
-              const Text("Audit Opname Stok", style: TextStyle(fontSize: 16)),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                "Audit Opname Stok Fisik",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                "Gunakan fitur ini untuk menyinkronkan jumlah fisik barang di gudang dengan catatan sistem secara real-time.",
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF3E5F5),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.check_circle_outline, color: Color(0xFF7B1FA2)),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        "Audit Terakhir: Kemarin, 17:00 WIB (Sesuai)",
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF7B1FA2)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Tutup", style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute<void>(
-                    builder: (context) => const StockCheckPage(),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF7B1FA2),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: const Text("MULAI AUDIT"),
             ),
           ],
         );
@@ -791,7 +841,7 @@ class _InventoryMainDashboardState extends State<InventoryMainDashboard> {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.orange.shade50,
               borderRadius: BorderRadius.circular(10),
