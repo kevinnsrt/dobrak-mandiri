@@ -1,5 +1,7 @@
+import 'package:dobrak_mandiri_app/authentication/login.dart';
 import 'package:dobrak_mandiri_app/cashier/sales_report_page.dart';
 import 'package:dobrak_mandiri_app/cashier/stock_check_page.dart';
+import 'package:dobrak_mandiri_app/services/auth_service.dart';
 import 'package:flutter/material.dart';
 
 class InventoryMainDashboard extends StatefulWidget {
@@ -60,9 +62,45 @@ class _InventoryMainDashboardState extends State<InventoryMainDashboard> {
               _showSnackBar("Tidak ada notifikasi baru");
             },
           ),
-          const CircleAvatar(
-            backgroundColor: Colors.white24,
-            child: Icon(Icons.inventory_sharp, color: Colors.white),
+          PopupMenuButton<String>(
+            icon: const CircleAvatar(
+              backgroundColor: Colors.white24,
+              child: Icon(Icons.inventory_sharp, color: Colors.white),
+            ),
+            onSelected: (value) async {
+              if (value == 'logout') {
+                await AuthService.logout();
+                if (context.mounted) {
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute<void>(
+                      builder: (context) => const LoginPage(),
+                    ),
+                    (route) => false,
+                  );
+                }
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                enabled: false,
+                child: Text(
+                  "Sesi: Tim Gudang",
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
+                ),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, color: Colors.red, size: 20),
+                    SizedBox(width: 8),
+                    Text("Keluar (Logout)", style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 16),
         ],

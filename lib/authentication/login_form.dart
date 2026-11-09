@@ -1,4 +1,6 @@
 import 'package:dobrak_mandiri_app/dashboard/cashier.main.dashboard.dart';
+import 'package:dobrak_mandiri_app/dashboard/inventory.main.dashboard.dart';
+import 'package:dobrak_mandiri_app/services/auth_service.dart';
 import 'package:flutter/material.dart';
 
 class LoginForm extends StatefulWidget {
@@ -9,12 +11,16 @@ class LoginForm extends StatefulWidget {
 }
 
 class _LoginFormState extends State<LoginForm> {
-  // Controller untuk membaca inputan text (tanpa logika autentikasi dulu)
+  // Controller untuk membaca inputan text
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  // State untuk toggle status visibilitas password
+  // Service Autentikasi
+  final AuthService _authService = AuthService();
+
+  // State
   bool _isPasswordObscured = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -23,11 +29,117 @@ class _LoginFormState extends State<LoginForm> {
     super.dispose();
   }
 
+  // --- Fungsi Handle Login HTTP REST API ---
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    // Validasi input awal
+    if (email.isEmpty || password.isEmpty) {
+      _showErrorDialog("Email dan kata sandi tidak boleh kosong.");
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Panggil API Login
+      final result = await _authService.login(
+        email: email,
+        password: password,
+      );
+
+      if (!mounted) return;
+
+      if (result.isSuccess) {
+        final displayName = result.userName ?? "Kasir Toko";
+
+        // Tampilkan pesan berhasil
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 10),
+                Expanded(child: Text("Login Berhasil! Selamat datang, $displayName.")),
+              ],
+            ),
+            backgroundColor: const Color(0xFF2E7D32),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+
+        Widget destination;
+        if (result.role == 'INVENTORY' || result.role == 'GUDANG') {
+          destination = const InventoryMainDashboard();
+        } else {
+          destination = const CashierMainDashboard();
+        }
+
+        // Navigasi ke Dashboard
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute<void>(
+            builder: (context) => destination,
+          ),
+        );
+      } else {
+        // Tampilkan pesan error
+        _showErrorDialog(result.message);
+      }
+    } catch (e, stackTrace) {
+      debugPrint("Exception in _handleLogin: $e\n$stackTrace");
+      if (mounted) {
+        _showErrorDialog("Terjadi kesalahan saat memproses login:\n${e.toString()}");
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Row(
+            children: [
+              Icon(Icons.error_outline, color: Colors.red),
+              SizedBox(width: 10),
+              Text("Gagal Login"),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Text(message),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2E7D32),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text("OK"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Definisi Warna Aksen Hijau PT Dobrak Mandiri
-    const Color primaryGreen = Color(0xFF2E7D32); // Hijau Emerald Tua (Profesional)
-    const Color lightGreenAccent = Color(0xFFC8E6C9); // Hijau Muda Dekorasi
+    const Color primaryGreen = Color(0xFF2E7D32);
+    const Color lightGreenAccent = Color(0xFFC8E6C9);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -98,9 +210,10 @@ class _LoginFormState extends State<LoginForm> {
                     TextField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
+                      enabled: !_isLoading,
                       decoration: InputDecoration(
                         labelText: "Email",
-                        hintText: "contoh: nama@dobrakmandiri.com",
+                        hintText: "contoh: kasir@pos.local",
                         prefixIcon: const Icon(Icons.email_outlined, color: primaryGreen),
                         filled: true,
                         fillColor: Colors.grey.shade50,
@@ -125,6 +238,7 @@ class _LoginFormState extends State<LoginForm> {
                     TextField(
                       controller: _passwordController,
                       obscureText: _isPasswordObscured,
+                      enabled: !_isLoading,
                       decoration: InputDecoration(
                         labelText: "Kata Sandi",
                         hintText: "Masukkan kata sandi Anda",
@@ -165,7 +279,7 @@ class _LoginFormState extends State<LoginForm> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: TextButton(
-                        onPressed: () {},
+                        onPressed: _isLoading ? null : () {},
                         child: const Text(
                           "Lupa Kata Sandi?",
                           style: TextStyle(
@@ -182,14 +296,7 @@ class _LoginFormState extends State<LoginForm> {
                     SizedBox(
                       height: 52,
                       child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute<void>(
-                              builder: (context) => const CashierMainDashboard(),
-                            ),
-                          );
-                        },
+                        onPressed: _isLoading ? null : _handleLogin,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryGreen,
                           foregroundColor: Colors.white,
@@ -198,14 +305,23 @@ class _LoginFormState extends State<LoginForm> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: const Text(
-                          "MASUK",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 1.0,
-                          ),
-                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2.5,
+                                ),
+                              )
+                            : const Text(
+                                "MASUK",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
                       ),
                     ),
                   ],
