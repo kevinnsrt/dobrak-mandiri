@@ -2,6 +2,7 @@ import 'package:dobrak_mandiri_app/services/stock_service.dart';
 import 'package:flutter/material.dart';
 
 class StockItem {
+  final dynamic rawId;
   final String id;
   final String name;
   final String category;
@@ -13,6 +14,7 @@ class StockItem {
   final IconData icon;
 
   const StockItem({
+    required this.rawId,
     required this.id,
     required this.name,
     required this.category,
@@ -52,6 +54,7 @@ class _StockCheckPageState extends State<StockCheckPage> {
   // Fallback Data jika server offline
   final List<StockItem> _fallbackProducts = const [
     StockItem(
+      rawId: 1,
       id: 'SKU-1001',
       name: 'Semen Portland 50kg',
       category: 'Bahan Bangunan',
@@ -63,6 +66,7 @@ class _StockCheckPageState extends State<StockCheckPage> {
       icon: Icons.inventory_2,
     ),
     StockItem(
+      rawId: 2,
       id: 'SKU-1002',
       name: 'Pipa PVC 2 Inci (10m)',
       category: 'Pipa & Sanitari',
@@ -74,6 +78,7 @@ class _StockCheckPageState extends State<StockCheckPage> {
       icon: Icons.plumbing,
     ),
     StockItem(
+      rawId: 3,
       id: 'SKU-1003',
       name: 'Cat Tembok Vinilex 5kg',
       category: 'Cat & Pelapis',
@@ -85,6 +90,7 @@ class _StockCheckPageState extends State<StockCheckPage> {
       icon: Icons.format_paint,
     ),
     StockItem(
+      rawId: 4,
       id: 'SKU-1004',
       name: 'Paku Kayu 5cm (1kg)',
       category: 'Perkakas',
@@ -152,6 +158,8 @@ class _StockCheckPageState extends State<StockCheckPage> {
 
   /// Parser fleksibel JSON dari REST API /api/v1/stok
   StockItem _parseStockItem(Map<String, dynamic> json) {
+    final dynamic rawId = json['id_produk'] ?? json['id'] ?? json['id_stok'] ?? json['kode_sku'];
+
     // 1. Kode SKU diambil dari field "kode_sku"
     final String id = json['kode_sku']?.toString() ??
         json['sku']?.toString() ??
@@ -201,6 +209,7 @@ class _StockCheckPageState extends State<StockCheckPage> {
         'Unit';
 
     return StockItem(
+      rawId: rawId,
       id: id,
       name: name,
       category: category,
@@ -557,7 +566,7 @@ class _StockCheckPageState extends State<StockCheckPage> {
                                             Text(
                                               "${item.stock} ${item.unit}",
                                               style: TextStyle(
-                                                fontSize: 15,
+                                                fontSize: 16,
                                                 fontWeight: FontWeight.bold,
                                                 color: badgeTextColor,
                                               ),
@@ -679,6 +688,26 @@ class _StockCheckPageState extends State<StockCheckPage> {
               _buildDetailRow("Batas Stok Minimum", "${item.minStock} ${item.unit}"),
               _buildDetailRow("Lokasi Penyimpanan", item.location),
               const SizedBox(height: 20),
+
+              // Tombol Update Stok & Harga
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showUpdateStockPriceDialog(item);
+                  },
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text("Update Stok & Harga"),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: primaryGreen,
+                    side: BorderSide(color: primaryGreen),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
               SizedBox(
                 width: double.infinity,
                 height: 48,
@@ -694,6 +723,108 @@ class _StockCheckPageState extends State<StockCheckPage> {
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  void _showUpdateStockPriceDialog(StockItem item) {
+    final TextEditingController stockController = TextEditingController(text: '${item.stock}');
+    final TextEditingController priceController = TextEditingController(text: '${item.price.toInt()}');
+    bool isUpdating = false;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Text("Update Stok & Harga\n${item.name}", style: const TextStyle(fontSize: 16)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: stockController,
+                      keyboardType: TextInputType.number,
+                      enabled: !isUpdating,
+                      decoration: InputDecoration(
+                        labelText: "Kuantitas Stok Baru (${item.unit})",
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: priceController,
+                      keyboardType: TextInputType.number,
+                      enabled: !isUpdating,
+                      decoration: InputDecoration(
+                        labelText: "Harga Jual Baru (Rp)",
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isUpdating ? null : () => Navigator.pop(dialogContext),
+                  child: const Text("Batal", style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: isUpdating
+                      ? null
+                      : () async {
+                          final int newStock = int.tryParse(stockController.text) ?? item.stock;
+                          final double newPrice = double.tryParse(priceController.text.replaceAll('.', '')) ?? item.price;
+
+                          setDialogState(() {
+                            isUpdating = true;
+                          });
+
+                          final result = await StockService.updateStockById(
+                            id: item.rawId ?? item.id,
+                            kodeSku: item.id,
+                            namaProduk: item.name,
+                            kuantitas: newStock,
+                            harga: newPrice,
+                            kategori: item.category,
+                            lokasi: item.location,
+                            satuan: item.unit,
+                          );
+
+                          if (!dialogContext.mounted) return;
+                          Navigator.pop(dialogContext);
+
+                          if (result.isSuccess) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Berhasil memperbarui stok & harga ${item.name}!"), backgroundColor: primaryGreen),
+                            );
+                            _fetchStockDataFromApi();
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text("Gagal update: ${result.message}"), backgroundColor: Colors.red),
+                            );
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryGreen,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: isUpdating
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                        )
+                      : const Text("SIMPAN PERUBAHAN"),
+                ),
+              ],
+            );
+          },
         );
       },
     );
