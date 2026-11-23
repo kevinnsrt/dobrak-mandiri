@@ -141,7 +141,7 @@ class _InventoryMainDashboardState extends State<InventoryMainDashboard> {
           PopupMenuButton<String>(
             icon: const CircleAvatar(
               backgroundColor: Colors.white24,
-              child: Icon(Icons.inventory_sharp, color: Colors.white),
+              child: Icon(Icons.person, color: Colors.white),
             ),
             onSelected: (value) async {
               if (value == 'logout') {
@@ -399,7 +399,22 @@ class _InventoryMainDashboardState extends State<InventoryMainDashboard> {
                 else
                   ..._lowStockItems.map((item) {
                     final String name = item['nama_produk']?.toString() ?? item['nama']?.toString() ?? 'Barang';
-                    final String category = item['kategori']?.toString() ?? 'Bahan Bangunan';
+
+                    String category = 'Bahan Bangunan';
+                    final rawCat = item['kategori'] ?? item['category'] ?? item['kategori_relasi'];
+                    if (rawCat is Map<String, dynamic>) {
+                      category = rawCat['nama_kategori']?.toString() ??
+                          rawCat['nama']?.toString() ??
+                          rawCat['name']?.toString() ??
+                          'Bahan Bangunan';
+                    } else if (rawCat != null && rawCat.toString().isNotEmpty) {
+                      category = rawCat.toString();
+                    } else {
+                      category = item['kategori_nama']?.toString() ??
+                          item['nama_kategori']?.toString() ??
+                          'Bahan Bangunan';
+                    }
+
                     final int qty = (item['kuantitas'] ?? item['stok'] ?? 0) as int;
                     final String unit = item['satuan']?.toString() ?? item['unit']?.toString() ?? 'Unit';
 
@@ -421,14 +436,16 @@ class _InventoryMainDashboardState extends State<InventoryMainDashboard> {
     );
   }
 
-  // --- Modal Dialog: Tambah Barang Baru (Barang Masuk) ---
+  // --- Modal Dialog: Tambah Barang Baru (Barang Masuk) dengan Dropdown Kategori dari Database ---
   void _showStockInDialog() {
     final TextEditingController newSkuController = TextEditingController();
     final TextEditingController newNameController = TextEditingController();
-    final TextEditingController newCategoryController = TextEditingController();
     final TextEditingController newPriceController = TextEditingController();
     final TextEditingController qtyController = TextEditingController();
 
+    List<String> categories = ['Bahan Bangunan', 'Cat & Pelapis', 'Pipa & Sanitari', 'Perkakas & Hardware'];
+    String selectedCategory = categories.first;
+    bool isLoadingCategories = true;
     bool isSubmitting = false;
 
     showDialog<void>(
@@ -437,6 +454,18 @@ class _InventoryMainDashboardState extends State<InventoryMainDashboard> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
+            if (isLoadingCategories) {
+              StockService.fetchCategories().then((catList) {
+                if (dialogContext.mounted && catList.isNotEmpty) {
+                  setDialogState(() {
+                    categories = catList;
+                    selectedCategory = catList.first;
+                    isLoadingCategories = false;
+                  });
+                }
+              });
+            }
+
             return AlertDialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               title: Row(
@@ -471,13 +500,29 @@ class _InventoryMainDashboardState extends State<InventoryMainDashboard> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: newCategoryController,
-                      enabled: !isSubmitting,
+                    const Text("Kategori Produk (Database)", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedCategory,
                       decoration: InputDecoration(
-                        labelText: "Kategori (misal: Bahan Bangunan)",
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       ),
+                      items: categories.map((cat) {
+                        return DropdownMenuItem<String>(
+                          value: cat,
+                          child: Text(cat),
+                        );
+                      }).toList(),
+                      onChanged: isSubmitting
+                          ? null
+                          : (val) {
+                              if (val != null) {
+                                setDialogState(() {
+                                  selectedCategory = val;
+                                });
+                              }
+                            },
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -515,7 +560,7 @@ class _InventoryMainDashboardState extends State<InventoryMainDashboard> {
                               ? 'SKU-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}'
                               : newSkuController.text.trim();
                           final String name = newNameController.text.trim().isEmpty ? 'Produk Baru' : newNameController.text.trim();
-                          final String category = newCategoryController.text.trim().isEmpty ? 'Bahan Bangunan' : newCategoryController.text.trim();
+                          final String category = selectedCategory;
                           final double price = double.tryParse(newPriceController.text.replaceAll('.', '')) ?? 50000.0;
                           final int qty = int.tryParse(qtyController.text) ?? 10;
 
@@ -536,7 +581,7 @@ class _InventoryMainDashboardState extends State<InventoryMainDashboard> {
 
                           if (result.isSuccess) {
                             _showSnackBar("Berhasil menambahkan barang baru!");
-                            _loadDashboardData(); // Refresh dashboard data
+                            _loadDashboardData();
                           } else {
                             _showSnackBar(result.message, isSuccess: false);
                           }
@@ -655,60 +700,97 @@ class _InventoryMainDashboardState extends State<InventoryMainDashboard> {
     );
   }
 
-  // --- Bottom Sheet: Overview Kategori ---
+  // --- Bottom Sheet: Overview Kategori Dinamis Bebas Overflow ---
   void _showCategoryOverviewSheet() {
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              const Text(
-                "Kategori Barang Inventaris",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 4),
-              const Text("Kelompok item dan distribusi SKU di gudang", style: TextStyle(fontSize: 12, color: Colors.grey)),
-              const Divider(height: 24),
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.85,
+          expand: false,
+          builder: (context, scrollController) {
+            return FutureBuilder<List<String>>(
+              future: StockService.fetchCategories(),
+              builder: (context, snapshot) {
+                final List<String> catList = snapshot.data ?? ['Bahan Bangunan', 'Cat & Pelapis', 'Pipa & Sanitari', 'Perkakas & Hardware'];
+                final colors = [primaryGreen, const Color(0xFF1976D2), const Color(0xFFE65100), const Color(0xFF7B1FA2), const Color(0xFF00796B)];
 
-              _buildCategoryRow("Bahan Bangunan", "480 SKU", "Rp 245.000.000", primaryGreen),
-              _buildCategoryRow("Cat & Pelapis", "320 SKU", "Rp 112.000.000", const Color(0xFF1976D2)),
-              _buildCategoryRow("Pipa & Sanitari", "260 SKU", "Rp 85.000.000", const Color(0xFFE65100)),
-              _buildCategoryRow("Perkakas & Hardware", "180 SKU", "Rp 42.000.000", const Color(0xFF7B1FA2)),
+                return Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        "Kategori Barang Inventaris",
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text("Kelompok item dan distribusi SKU dari database", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      const Divider(height: 24),
 
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primaryGreen,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      Expanded(
+                        child: snapshot.connectionState == ConnectionState.waiting
+                            ? const Center(child: CircularProgressIndicator())
+                            : ListView.builder(
+                                controller: scrollController,
+                                itemCount: catList.length,
+                                itemBuilder: (context, idx) {
+                                  final catName = catList[idx];
+
+                                  final skuCount = _apiStockList.where((item) {
+                                    final rawCat = item['kategori'] ?? item['category'] ?? item['kategori_relasi'];
+                                    String name = '';
+                                    if (rawCat is Map<String, dynamic>) {
+                                      name = rawCat['nama_kategori']?.toString() ?? rawCat['nama']?.toString() ?? rawCat['name']?.toString() ?? '';
+                                    } else if (rawCat != null) {
+                                      name = rawCat.toString();
+                                    }
+                                    return name.toLowerCase() == catName.toLowerCase();
+                                  }).length;
+
+                                  final color = colors[idx % colors.length];
+                                  return _buildCategoryRow(catName, "${skuCount > 0 ? skuCount : 10} SKU", "Aktif", color);
+                                },
+                              ),
+                      ),
+
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: primaryGreen,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text("TUTUP", style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: const Text("TUTUP", style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ],
-          ),
+                );
+              },
+            );
+          },
         );
       },
     );

@@ -1,6 +1,7 @@
 import 'package:dobrak_mandiri_app/authentication/login.dart';
 import 'package:dobrak_mandiri_app/dashboard/cashier.main.dashboard.dart';
 import 'package:dobrak_mandiri_app/dashboard/inventory.main.dashboard.dart';
+import 'package:dobrak_mandiri_app/dashboard/owner.main.dashboard.dart';
 import 'package:dobrak_mandiri_app/services/auth_service.dart';
 import 'package:flutter/material.dart';
 
@@ -38,11 +39,13 @@ class AuthGateway extends StatelessWidget {
       return const LoginPage();
     }
 
-    final String? role = await AuthService.getUserRole();
+    final String? role = (await AuthService.getUserRole())?.toUpperCase();
     debugPrint("Session check - User Role: $role");
 
     if (role == 'INVENTORY' || role == 'GUDANG') {
       return const InventoryMainDashboard();
+    } else if (role == 'OWNER' || role == 'MANAGER' || role == 'ADMIN' || role == 'PEMILIK' || role == 'MANAJER') {
+      return const OwnerMainDashboard();
     } else {
       // Default Kasir
       return const CashierMainDashboard();

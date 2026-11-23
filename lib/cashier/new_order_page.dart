@@ -172,10 +172,22 @@ class _NewOrderPageState extends State<NewOrderPage> {
         json['name']?.toString() ??
         'Barang Tanpa Nama';
 
-    final String category = json['kategori']?.toString() ??
-        json['kategori_nama']?.toString() ??
-        json['category']?.toString() ??
-        'Bahan Bangunan';
+    // Parse Kategori (apabila relasi ke tabel kategori: {id: 1, nama_kategori: "..."} atau {id: 1, nama: "..."})
+    String category = 'Bahan Bangunan';
+    final rawCategory = json['kategori'] ?? json['category'] ?? json['kategori_relasi'];
+    if (rawCategory is Map<String, dynamic>) {
+      category = rawCategory['nama_kategori']?.toString() ??
+          rawCategory['nama']?.toString() ??
+          rawCategory['name']?.toString() ??
+          'Bahan Bangunan';
+    } else if (rawCategory != null && rawCategory.toString().isNotEmpty) {
+      category = rawCategory.toString();
+    } else {
+      category = json['kategori_nama']?.toString() ??
+          json['nama_kategori']?.toString() ??
+          json['category_name']?.toString() ??
+          'Bahan Bangunan';
+    }
 
     final double price = (json['harga'] as num?)?.toDouble() ??
         (json['harga_jual'] as num?)?.toDouble() ??

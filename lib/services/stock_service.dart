@@ -16,9 +16,8 @@ class StockApiResult {
 }
 
 class StockService {
-  static const String baseUrl = 'http://172.20.10.2:8080/api/v1';
+  static const String baseUrl = 'http://172.20.10.3:8080/api/v1';
 
-  /// Mengambil data daftar stok dari HTTP GET http://172.20.10.2:8080/api/v1/stok dengan per_page=1000
   static Future<StockApiResult> fetchStockList() async {
     // Tambahkan per_page=1000 & limit=1000 agar backend mengirimkan seluruh daftar stok tanpa terpotong paginasi
     final Uri uri = Uri.parse('$baseUrl/stok?per_page=1000&limit=1000&all=true');
@@ -80,6 +79,67 @@ class StockService {
         message: 'Gagal terhubung ke API Stok: ${e.toString()}',
       );
     }
+  }
+
+  static Future<List<String>> fetchCategories() async {
+    final Uri uri = Uri.parse('$baseUrl/kategori');
+
+    try {
+      final headers = await AuthService.getAuthHeader();
+      debugPrint("Mengirim GET request ke: $uri");
+
+      final response = await http.get(uri, headers: headers).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final dynamic decoded = jsonDecode(response.body);
+        List<dynamic> rawList = [];
+
+        if (decoded is List) {
+          rawList = decoded;
+        } else if (decoded is Map<String, dynamic>) {
+          final dataField = decoded['data'] ?? decoded['kategori'] ?? decoded['result'];
+          if (dataField is List) rawList = dataField;
+        }
+
+        final Set<String> catSet = {};
+        for (var item in rawList) {
+          if (item is Map<String, dynamic>) {
+            final name = item['nama_kategori']?.toString() ?? item['nama']?.toString() ?? item['name']?.toString();
+            if (name != null && name.isNotEmpty) catSet.add(name);
+          } else if (item is String && item.isNotEmpty) {
+            catSet.add(item);
+          }
+        }
+
+        if (catSet.isNotEmpty) return catSet.toList();
+      }
+    } catch (e) {
+      debugPrint("Info: Endpoint GET /kategori tidak tersedia, fallback ekstraksi dari GET /stok: $e");
+    }
+
+    // Fallback: Ekstraksi kategori dari daftar stok (GET /stok)
+    final stockRes = await fetchStockList();
+    final Set<String> catSet = {};
+
+    if (stockRes.isSuccess && stockRes.data != null) {
+      for (var item in stockRes.data!) {
+        if (item is Map<String, dynamic>) {
+          final rawCat = item['kategori'] ?? item['category'] ?? item['kategori_relasi'];
+          if (rawCat is Map<String, dynamic>) {
+            final name = rawCat['nama_kategori']?.toString() ?? rawCat['nama']?.toString() ?? rawCat['name']?.toString();
+            if (name != null && name.isNotEmpty) catSet.add(name);
+          } else if (rawCat != null && rawCat.toString().isNotEmpty) {
+            catSet.add(rawCat.toString());
+          }
+        }
+      }
+    }
+
+    if (catSet.isEmpty) {
+      return ['Bahan Bangunan', 'Cat & Pelapis', 'Pipa & Sanitari', 'Perkakas & Hardware'];
+    }
+
+    return catSet.toList();
   }
 
   /// Fungsi stockUpdate untuk menambah/memperbarui stok via HTTP POST http://172.20.10.2:8080/api/v1/stok

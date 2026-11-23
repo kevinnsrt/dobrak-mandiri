@@ -21,7 +21,7 @@ class LoginResult {
 
 class AuthService {
   // Base URL REST API Authentication
-  static const String baseUrl = 'http://172.20.10.2:8080/api/v1';
+  static const String baseUrl = 'http://172.20.10.3:8080/api/v1';
 
   // Key untuk penyimpanan SharedPreferences
   static const String keyToken = 'bearer_token';
@@ -123,7 +123,7 @@ class AuthService {
 
       return LoginResult(
         isSuccess: false,
-        message: 'Gagal terhubung ke server (http://172.20.10.2:8080). Pastikan jaringan terhubung.\nDetail: ${e.toString()}',
+        message: 'Gagal terhubung ke server (http://172.20.10.3:8080). Pastikan jaringan terhubung.\nDetail: ${e.toString()}',
       );
     }
   }

@@ -40,9 +40,8 @@ class TransactionDetailResult {
 }
 
 class TransactionService {
-  static const String baseUrl = 'http://172.20.10.2:8080/api/v1';
+  static const String baseUrl = 'http://172.20.10.3:8080/api/v1';
 
-  /// Mengirim HTTP POST Transaksi ke REST API http://172.20.10.2:8080/api/v1/transaksi dengan Bearer Token
   static Future<TransactionApiResult> createTransaction({
     required String paymentMethod,
     required double subtotal,
