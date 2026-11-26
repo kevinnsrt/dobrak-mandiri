@@ -1,111 +1,111 @@
-import 'package:dobrak_mandiri_app/authentication/login.dart';
-import 'package:dobrak_mandiri_app/dashboard/cashier.main.dashboard.dart';
-import 'package:dobrak_mandiri_app/dashboard/inventory.main.dashboard.dart';
-import 'package:dobrak_mandiri_app/services/auth_service.dart';
+import 'package:dobrak_mandiri_app/core/theme/app_theme.dart';
+import 'package:dobrak_mandiri_app/data/repositories/auth_repository.dart';
+import 'package:dobrak_mandiri_app/data/repositories/inventory_repository.dart';
+import 'package:dobrak_mandiri_app/data/repositories/transaction_repository.dart';
+import 'package:dobrak_mandiri_app/data/services/api_client.dart';
+import 'package:dobrak_mandiri_app/data/services/auth_service.dart';
+import 'package:dobrak_mandiri_app/data/services/local_storage_service.dart';
+import 'package:dobrak_mandiri_app/data/services/stock_service.dart';
+import 'package:dobrak_mandiri_app/data/services/transaction_service.dart';
+import 'package:dobrak_mandiri_app/features/auth/presentation/pages/auth_gateway_page.dart';
+import 'package:dobrak_mandiri_app/providers/auth_provider.dart';
+import 'package:dobrak_mandiri_app/providers/inventory_provider.dart';
+import 'package:dobrak_mandiri_app/providers/pos_provider.dart';
+import 'package:dobrak_mandiri_app/providers/report_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(MyApp(dependencies: AppDependencies.create()));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+/// Kontainer dependensi aplikasi untuk Dependency Injection & kemudahan testing.
+class AppDependencies {
+  AppDependencies({
+    required this.authRepository,
+    required this.inventoryRepository,
+    required this.transactionRepository,
+  });
 
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'PT Dobrak Mandiri POS',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2E7D32),
-        ),
-        useMaterial3: true,
-      ),
-      home: const AuthGateway(),
+  final AuthRepository authRepository;
+  final InventoryRepository inventoryRepository;
+  final TransactionRepository transactionRepository;
+
+  factory AppDependencies.create({ApiClient? apiClient, LocalStorageService? localStorage}) {
+    final storage = localStorage ?? LocalStorageService();
+    final client = apiClient ?? ApiClient();
+
+    final authService = AuthService(apiClient: client, localStorage: storage);
+    final stockService = StockService(apiClient: client, localStorage: storage);
+    final transactionService =
+        TransactionService(apiClient: client, localStorage: storage);
+
+    final authRepository =
+        AuthRepository(authService: authService, localStorage: storage);
+    final inventoryRepository = InventoryRepository(
+      stockService: stockService,
+      localStorage: storage,
+    );
+    final transactionRepository = TransactionRepository(
+      transactionService: transactionService,
+      localStorage: storage,
+      inventoryRepository: inventoryRepository,
+    );
+
+    return AppDependencies(
+      authRepository: authRepository,
+      inventoryRepository: inventoryRepository,
+      transactionRepository: transactionRepository,
     );
   }
 }
 
-/// Widget Gateway untuk Memeriksa Status Sesi Login & Navigasi Berdasarkan Role
-class AuthGateway extends StatelessWidget {
-  const AuthGateway({super.key});
+class MyApp extends StatelessWidget {
+  MyApp({
+    super.key,
+    AppDependencies? dependencies,
+  }) : dependencies = dependencies ?? AppDependencies.create();
 
-  Future<Widget> _checkAuthAndDetermineScreen() async {
-    final bool loggedIn = await AuthService.isLoggedIn();
-
-    if (!loggedIn) {
-      return const LoginPage();
-    }
-
-    final String? role = await AuthService.getUserRole();
-    debugPrint("Session check - User Role: $role");
-
-    if (role == 'INVENTORY' || role == 'GUDANG') {
-      return const InventoryMainDashboard();
-    } else {
-      // Default Kasir
-      return const CashierMainDashboard();
-    }
-  }
+  final AppDependencies dependencies;
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Widget>(
-      future: _checkAuthAndDetermineScreen(),
-      builder: (context, snapshot) {
-        // Tampilan Splash / Loading saat mengecek Sesi
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Scaffold(
-            backgroundColor: Colors.white,
-            body: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 70,
-                    height: 70,
-                    padding: const EdgeInsets.all(12),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFE8F5E9),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const CircularProgressIndicator(
-                      color: Color(0xFF2E7D32),
-                      strokeWidth: 3,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    "PT DOBRAK MANDIRI",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.0,
-                      color: Color(0xFF2E7D32),
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    "Memeriksa sesi login...",
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
-        // Jika terjadi error, arahkan ke Halaman Login
-        if (snapshot.hasError || !snapshot.hasData) {
-          return const LoginPage();
-        }
-
-        return snapshot.data!;
-      },
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AuthProvider>(
+          create: (_) =>
+              AuthProvider(authRepository: dependencies.authRepository)
+                ..initialize(),
+        ),
+        ChangeNotifierProvider<InventoryProvider>(
+          create: (_) => InventoryProvider(
+            inventoryRepository: dependencies.inventoryRepository,
+          ),
+        ),
+        ChangeNotifierProvider<ReportProvider>(
+          create: (_) => ReportProvider(
+            transactionRepository: dependencies.transactionRepository,
+          ),
+        ),
+        ChangeNotifierProxyProvider2<InventoryProvider, ReportProvider,
+            PosProvider>(
+          create: (context) => PosProvider(
+            inventoryRepository: dependencies.inventoryRepository,
+            transactionRepository: dependencies.transactionRepository,
+            onCheckoutCompleted: () {
+              context.read<InventoryProvider>().notifyStockSynchronized();
+              context.read<ReportProvider>().notifyTransactionsSynchronized();
+            },
+          ),
+          update: (_, __, ___, previous) => previous!,
+        ),
+      ],
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'PT Dobrak Mandiri POS',
+        theme: AppTheme.lightTheme,
+        home: const AuthGatewayPage(),
+      ),
     );
   }
 }
