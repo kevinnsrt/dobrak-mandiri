@@ -232,43 +232,6 @@ class _CashierDashboardPageState extends State<CashierDashboardPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 24),
-                Text(
-                  'Ringkasan Penjualan Hari Ini',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade800,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade200),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _SummaryColumn(
-                        'Transaksi',
-                        '${today.totalTransactions}',
-                      ),
-                      Container(height: 32, width: 1, color: Colors.grey.shade300),
-                      _SummaryColumn(
-                        'Item Terjual',
-                        '${today.totalItemsSold}',
-                      ),
-                      Container(height: 32, width: 1, color: Colors.grey.shade300),
-                      _SummaryColumn(
-                        'Omset',
-                        CurrencyFormatter.formatCompact(today.totalRevenue),
-                      ),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),

@@ -60,7 +60,7 @@ class InventoryRepository {
     return null;
   }
 
-  /// Muat stok dari API REST, dengan fallback database lokal jika jaringan offline.
+  /// Muat stok dari API REST, dengan fallback database lokal jika jaringan offline atau sesi demo.
   Future<RepositoryActionResult<List<Product>>> loadProducts() async {
     final session = await _localStorage.loadSession();
     final isDemoSession = session?.isLocalDemo ?? false;
@@ -73,15 +73,20 @@ class InventoryRepository {
 
     try {
       final fetched = await _stockService.fetchProducts();
-      final fetchedCategories = await _stockService.fetchCategories();
 
-      if (fetched.isNotEmpty) {
-        _products = fetched;
-        await _localStorage.saveProducts(fetched);
-      } else {
-        final local = await _localStorage.loadProducts();
-        _products = local;
+      List<String> fetchedCategories = AppConstants.defaultCategories;
+      try {
+        final remoteCategories = await _stockService.fetchCategories();
+        if (remoteCategories.isNotEmpty) {
+          fetchedCategories = remoteCategories;
+        }
+      } catch (_) {
+        // Tetap gunakan kategori default jika endpoint kategori gagal, tanpa menimpa produk.
       }
+
+      // Selalu sinkronkan dengan hasil server (termasuk jika kosong [] setelah hapus di DB).
+      _products = fetched;
+      await _localStorage.saveProducts(fetched);
 
       _mergeProductCategories(fetchedCategories);
       _isOfflineFallback = false;
@@ -95,7 +100,6 @@ class InventoryRepository {
     } on ApiNetworkException catch (e) {
       return _loadFromLocalStore(reason: e.message);
     } on ApiHttpException catch (e) {
-      // Tetap muat data lokal yang sudah tersimpan agar UI tidak kosong, sambil laporkan error API.
       final local = await _ensureLocalProducts();
       _products = local;
       _mergeProductCategories(AppConstants.defaultCategories);
@@ -158,9 +162,9 @@ class InventoryRepository {
 
     for (final item in cartItems) {
       final liveProduct = findProductByIdOrSku(
-            id: item.product.id,
-            sku: item.product.sku,
-          ) ??
+        id: item.product.id,
+        sku: item.product.sku,
+      ) ??
           item.product;
 
       if (item.quantity <= 0) {
@@ -192,8 +196,8 @@ class InventoryRepository {
     final updatedList = List<Product>.from(_products);
     for (final soldItem in items) {
       final index = updatedList.indexWhere(
-        (p) =>
-            (soldItem.productId > 0 && p.id == soldItem.productId) ||
+            (p) =>
+        (soldItem.productId > 0 && p.id == soldItem.productId) ||
             (soldItem.sku.isNotEmpty && p.sku == soldItem.sku) ||
             p.name.toLowerCase() == soldItem.productName.toLowerCase(),
       );
@@ -212,7 +216,7 @@ class InventoryRepository {
   /// Tambah produk baru ke API + database lokal.
   Future<RepositoryActionResult<Product>> addProduct(Product product) async {
     final duplicateSku = _products.any(
-      (p) => p.sku.toLowerCase() == product.sku.toLowerCase(),
+          (p) => p.sku.toLowerCase() == product.sku.toLowerCase(),
     );
     if (duplicateSku) {
       return RepositoryActionResult(
@@ -324,7 +328,7 @@ class InventoryRepository {
       return RepositoryActionResult(
         isSuccess: false,
         message:
-            'Stok "${current.name}" tidak mencukupi untuk dikurangi ${delta.abs()} ${current.unit} (Sisa: ${current.stock} ${current.unit}).',
+        'Stok "${current.name}" tidak mencukupi untuk dikurangi ${delta.abs()} ${current.unit} (Sisa: ${current.stock} ${current.unit}).',
       );
     }
 
@@ -334,8 +338,8 @@ class InventoryRepository {
 
   void _upsertLocalProduct(Product product) {
     final idx = _products.indexWhere(
-      (p) =>
-          (product.id > 0 && p.id == product.id) ||
+          (p) =>
+      (product.id > 0 && p.id == product.id) ||
           (product.sku.isNotEmpty && p.sku == product.sku),
     );
     if (idx != -1) {
