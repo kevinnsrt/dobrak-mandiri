@@ -102,7 +102,7 @@ class MyApp extends StatelessWidget {
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'PT Dobrak Mandiri POS',
+        title: 'STELLIFORM by PT DOBRAK MANDIRI',
         theme: AppTheme.lightTheme,
         home: const AuthGatewayPage(),
       ),
