@@ -3,7 +3,7 @@ class ApiConfig {
   ApiConfig._();
 
   /// Base URL default sesuai konfigurasi backend lokal saat ini.
-  static const String defaultBaseUrl = 'http://172.20.10.3:8080/api/v1';
+  static const String defaultBaseUrl = 'https://stelliform.user.cloudjkt02.com/api/v1';
 
   /// Timeout default untuk panggilan HTTP.
   static const Duration requestTimeout = Duration(seconds: 10);

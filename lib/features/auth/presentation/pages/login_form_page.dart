@@ -57,23 +57,23 @@ class _LoginFormPageState extends State<LoginFormPage> {
     }
   }
 
-  Future<void> _handleDemoLogin(UserRole role) async {
-    final authProvider = context.read<AuthProvider>();
-    await authProvider.loginOfflineDemo(role);
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Masuk Mode Lokal sebagai ${role.displayLabel}.'),
-        backgroundColor: AppTheme.infoBlue,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-    if (Navigator.canPop(context)) {
-      Navigator.of(context).popUntil((route) => route.isFirst);
-    }
-  }
+  // Future<void> _handleDemoLogin(UserRole role) async {
+  //   final authProvider = context.read<AuthProvider>();
+  //   await authProvider.loginOfflineDemo(role);
+  //
+  //   if (!mounted) return;
+  //   ScaffoldMessenger.of(context).showSnackBar(
+  //     SnackBar(
+  //       content: Text('Masuk Mode Lokal sebagai ${role.displayLabel}.'),
+  //       backgroundColor: AppTheme.infoBlue,
+  //       behavior: SnackBarBehavior.floating,
+  //       duration: const Duration(seconds: 2),
+  //     ),
+  //   );
+  //   if (Navigator.canPop(context)) {
+  //     Navigator.of(context).popUntil((route) => route.isFirst);
+  //   }
+  // }
 
   void _showErrorDialog(String message) {
     showDialog<void>(
@@ -178,13 +178,6 @@ class _LoginFormPageState extends State<LoginFormPage> {
         backgroundColor: Colors.transparent,
         foregroundColor: AppTheme.primaryGreen,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: 'Pengaturan Server API',
-            onPressed: isLoading ? null : _showServerSettingsDialog,
-          ),
-        ],
       ),
       body: SafeArea(
         child: Center(
@@ -198,7 +191,7 @@ class _LoginFormPageState extends State<LoginFormPage> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const Text(
-                      'SISTEM POS & INVENTARIS',
+                      'STELLIFORM',
                       style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -320,40 +313,6 @@ class _LoginFormPageState extends State<LoginFormPage> {
                     const SizedBox(height: 28),
                     const Divider(),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Atau jalankan Mode Lokal (Tanpa Server Backend):',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 12, color: AppTheme.mutedText),
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: isLoading
-                              ? null
-                              : () => _handleDemoLogin(UserRole.cashier),
-                          icon: const Icon(Icons.point_of_sale, size: 16),
-                          label: const Text('Kasir'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: isLoading
-                              ? null
-                              : () => _handleDemoLogin(UserRole.inventory),
-                          icon: const Icon(Icons.warehouse_outlined, size: 16),
-                          label: const Text('Gudang'),
-                        ),
-                        OutlinedButton.icon(
-                          onPressed: isLoading
-                              ? null
-                              : () => _handleDemoLogin(UserRole.owner),
-                          icon: const Icon(Icons.analytics_outlined, size: 16),
-                          label: const Text('Manager'),
-                        ),
-                      ],
-                    ),
                   ],
                 ),
               ),

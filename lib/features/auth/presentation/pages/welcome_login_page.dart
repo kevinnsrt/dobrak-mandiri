@@ -96,7 +96,7 @@ class WelcomeLoginPage extends StatelessWidget {
                               ),
                               const SizedBox(height: 32),
                               const Text(
-                                'SISTEM POS & INVENTARIS',
+                                'STELLIFORM by',
                                 style: TextStyle(
                                   fontSize: 22,
                                   fontWeight: FontWeight.bold,
@@ -151,7 +151,7 @@ class WelcomeLoginPage extends StatelessWidget {
                                   ),
                                 ),
                                 child: const Text(
-                                  'MASUK KE SISTEM',
+                                  'MASUK',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontSize: 16,
